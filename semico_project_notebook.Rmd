@@ -1,0 +1,148 @@
+---
+title: "semico"
+author: "Jake Daniels"
+date: "October 1, 2018"
+output: html_document
+---
+
+```{r}
+library(tidyverse) # for manipulating
+library(rtweet) # for scraping tweets
+library(purrr) # for iterating over multiple sources
+library(tidytext) # for text manipulation
+``` 
+
+```{r}
+# insert your own tokens, mine are in .REnviron
+
+create_token(app = Sys.getenv("TWITTER_APP"),
+  consumer_key = Sys.getenv("TWITTER_CONSUMER_KEY"),
+  consumer_secret = Sys.getenv("TWITTER_CONSUMER_SECRET"))
+```
+
+## Pull the top 5 trends
+```{r}
+local_trends <- get_trends("toronto") %>%
+  arrange(desc(tweet_volume)) %>%
+  select(trend) %>%
+  head(5) 
+```
+
+## Getting trend datas
+```{r}
+tweet_funct <- function(x){
+search_tweets(x,  n = 2000, include_rts = FALSE,  lang = "en", type="recent", retryonratelimit = F)
+}
+
+lt <- map_dfr(local_trends$trend, tweet_funct, .id	= "trend")
+
+for(i in 1:5) 
+lt[which(lt$trend==i),]$trend <- local_trends[i,]$trend
+```
+
+## Creating graph layout
+```{r}
+palettes <- c('Accent', 'Dark2', 'Paired', 'Pastel1', 'Pastel2', 'Set1', 'Set2', 'Set3', 'BrBG', 'PiYG', 'PRGn', 'PuOr', 'RdBu', 'RdGy', 'RdYlBu', 'RdYlGn', 'Spectral')
+
+gg <- function(graph){
+  
+my_title <- paste("Online Discussion Surrounding", local_trends[i,]$trend)
+my_subtitle <- paste("based on", 2000, "recent tweets")
+  
+ggplot(data=graph,aes(x = reorder(word, n), y = n, fill = "blue")) + 
+       geom_bar(show.legend = F, stat = "identity", width = 0.8) +
+       scale_fill_brewer(palette = sample(palettes, 1)) +
+       labs(title = my_title, subtitle = my_subtitle, y = "Number of Mentions", x = NULL) +
+       coord_flip() +
+      theme_classic() +
+       theme(plot.title=element_text(family='', face='bold', size=16))
+  
+ggsave(paste0(local_trends[i,]$trend,".png"), path=here::here()) # this is coded to save in your project file, you may need to adjust it accordingly
+}
+```
+
+# iterating over datas
+```{r}
+for(i in 1:5)
+print(lt %>%
+  filter(trend == local_trends[i,]$trend) %>%
+  unnest_tokens(word, text) %>%  
+  anti_join(stop_words) %>%
+  count(word, sort = T) %>% 
+  filter(!word %in% c('t.co', tolower(local_trends[i,]$trend), str_replace(local_trends[i,]$trend, "#", ""), str_extract(pattern = "[a-z]+",tolower(local_trends[i,]$trend)), str_extract(pattern = "[a-z]+$",tolower(local_trends[1,]$trend)), 'https', 'amp', 1:10)) %>%
+  arrange(desc(n)) %>%
+  head(20) %>%
+  gg())
+```
+
+## text simulator - feel free to add your own.
+```{r}
+seq1 <- c(
+"Whoa man,",
+"Incredible,",
+"We noticed",
+"Uhhh, any reason",
+"Hmm,",
+"hmmM,",
+"Uhhh",
+"Yoooo,",
+"!!!! Why ",
+"Yeee,",
+"haha",
+"LOL,",
+"whoa damn",
+"kinda cool",
+"kinda lame",
+"pretty stupid",
+"pretty silly",
+"oddly enough"
+)
+
+top1 <- lt %>%
+filter(trend == local_trends[i,]$trend) %>%
+unnest_tokens(word, text) %>% #Unnest the words - code via Tidy Text
+anti_join(stop_words) %>% #remove stop words
+count(word, sort = T) %>% #do a word count
+filter(!word %in% c('t.co', local_trends[i,]$trend,'https', 'amp', 1:10)) %>%
+arrange(desc(n)) %>%
+head(1)
+
+seq2 <- c(
+"ppl like using these words:",
+paste("Seems like they mention", top1, "the most"),
+"i'm seeing high volumes of chatter!!!",
+paste("i'm detecting lotsa chatter about", top1),
+"what is all this chatter about?",
+paste("lots of chattering about", top1),
+"dang.",
+paste("Iunno what", top1, "would even mean"),
+"Twitter is blowing up!",
+"twitter is all over it",
+"drag them kings & queens",
+"check please.",
+"don't people have better things to do with their time?",
+"but i'm hardly even suprised",
+"and i'm hardly even suprised",
+"but that's no surprise to me",
+"what a way to waste my day on lol"
+)
+
+marks <- c(rep("?",5), "??", "???", "!?", "?!", "??!", "?!!?", "?!?", "..", ".", "...","....")
+```
+
+## caption generator
+```{r}
+sample(paste(seq1,local_trends[i,]$trend,paste0("is trending",marks), seq2),1)
+
+# ex. "Incredible, #MondayMotivation is trending? but that's no surprise to me"
+```
+
+## iterate the caption generator over the five images and tweet the media
+```{r}
+library(twitteR)
+library(httr)
+setup_twitter_oauth(consumer_key = Sys.getenv("TWITTER_CONSUMER_KEY"), consumer_secret =Sys.getenv("TWITTER_CONSUMER_SECRET"), access_token = "951665733859233792-RuDfOTRGxagpFfVR3bs3zyRRctbGCEP", access_secret = "qh5ORSTqUMD99ukSRmsXLzMJfDiuLvZuRPkUxd9blooLs")
+
+for(i in 1:5)
+tweet(text = sample(paste(seq1,local_trends[i,]$trend,paste0("is trending",marks), seq2),1), mediaPath = paste0(here::here(), local_trends[i,]$trend, ".png"))
+```

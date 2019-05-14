@@ -12,11 +12,11 @@ tweet(text = sample(paste(seq1,local_trends[i,]$trend,paste0("is trending",marks
 
 Example:
 
-"Whoa man, Donald Trump is trending... Seems like they mention emails the most" 
+"Whoa man, Avengers is trending... Seems like they mention spiderman the most" 
 
 or
     
-"pretty stupid Donald Trump is trending!? don't people have better things to do with their time?"
+"pretty stupid Avengers is trending!? don't people have better things to do with their time?"
 
 
 Goals:
